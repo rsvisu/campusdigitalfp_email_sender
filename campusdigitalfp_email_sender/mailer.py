@@ -44,7 +44,7 @@ def send_email(
 
         try:
             context = ssl.create_default_context()
-            with smtplib.SMTP_SSL(smtp_host, smtp_port, context=context) as server:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, context=context, timeout=30) as server:
                 server.login(user, password)
                 server.send_message(msg)
             logger.info("Envío OK -> %s (cuenta: %s)", to, user)

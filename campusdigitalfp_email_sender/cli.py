@@ -1,6 +1,7 @@
 import argparse
 import logging
 import sys
+import time
 from pathlib import Path
 from typing import List, Tuple
 
@@ -75,6 +76,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--from-name",
         default=cfg.get("from_name") or "",
+    )
+
+    # reintentos automáticos
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Intentos por correo antes de marcarlo como fallido (default: 3)",
+    )
+    parser.add_argument(
+        "--retry-delay",
+        type=float,
+        default=5.0,
+        metavar="SECONDS",
+        help="Segundos de espera entre reintentos (default: 5)",
     )
 
     # paths / logging
@@ -156,20 +172,32 @@ def send_emails(args, accounts: List[SmtpAccount]) -> None:
     fail_count = 0
     current_account_idx = 0
     for row in pending:
-        res, current_account_idx = send_email(
-            smtp_host=args.smtp_host,
-            smtp_port=args.smtp_port,
-            accounts=accounts,
-            to=row["email"],
-            subject=row["asunto"],
-            html=row["contenido"],
-            from_name=args.from_name,
-            start_idx=current_account_idx,
-        )
+        res = None
+        for attempt in range(1, args.max_retries + 1):
+            res, current_account_idx = send_email(
+                smtp_host=args.smtp_host,
+                smtp_port=args.smtp_port,
+                accounts=accounts,
+                to=row["email"],
+                subject=row["asunto"],
+                html=row["contenido"],
+                from_name=args.from_name,
+                start_idx=current_account_idx,
+            )
+            if res.ok:
+                break
+            if attempt < args.max_retries:
+                logger.warning(
+                    "Reintento %d/%d para %s en %.0fs...",
+                    attempt, args.max_retries, row["email"], args.retry_delay,
+                )
+                time.sleep(args.retry_delay)
+
         row["estado"] = "ok" if res.ok else "fallido"
         if res.ok:
             ok_count += 1
         else:
+            logger.error("Marcado como fallido tras %d intentos: %s", args.max_retries, row["email"])
             fail_count += 1
 
     write_csv_with_status(csv_path, rows)

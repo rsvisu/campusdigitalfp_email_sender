@@ -17,6 +17,9 @@ def test_send_email_ok(mock_smtp):
     assert idx == 0
     mock_server.login.assert_called_once_with("user@gmail.com", "pass")
     mock_server.send_message.assert_called_once()
+    # verifica que se pasa timeout para no bloquear
+    _, kwargs = mock_smtp.call_args
+    assert kwargs.get("timeout") == 30
 
 
 @patch("campusdigitalfp_email_sender.mailer.smtplib.SMTP_SSL")
