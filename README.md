@@ -1,4 +1,4 @@
-# 📧 campusdigitalfp_email_sender
+# CampusDigitalFP Email Sender
 Aplicación Python para la automatización del envío de emails en el CampusDigitalFP que permite gestionar y enviar correos electrónicos vía SMTP (Gmail u otro proveedor) a partir de un fichero CSV.  
 Totalmente funcional desde línea de comandos y sin necesidad de tocar código.
 
@@ -34,20 +34,27 @@ python email_sender.py <opciones>
 
 ## Archivo de configuración (opcional)
 
-Fichero `email_sender.cfg` en el directorio donde lances el comando:
+Fichero `campusdigitalfp_email_sender.cfg` en el directorio donde lances el comando:
 
 ```ini
 [smtp]
 host = smtp.gmail.com
 port = 465
+# Una sola cuenta:
 user = micuenta@gmail.com
 password = miapppassword
+
+# O varias cuentas para rotación automática (si una falla, pasa a la siguiente):
+# accounts =
+#     cuenta1@gmail.com:apppassword1
+#     cuenta2@gmail.com:apppassword2
+#     cuenta3@gmail.com:apppassword3
 
 [defaults]
 from_name = Mi Empresa
 ```
 
-Si no existe el archivo **debes** proporcionar `--smtp-user` y `--smtp-password` en cada llamada.
+Si no existe el archivo debes proporcionar credenciales vía CLI (ver comandos).
 
 ---
 
@@ -66,9 +73,15 @@ Se crea (o amplía) `./mailing/id_emails_DD-MM-YYYY.csv`.
 ### 2. Enviar todos los pendientes del CSV del día
 
 ```bash
+# Cuenta única
 python email_sender.py \
         --smtp-user micuenta@gmail.com \
         --smtp-password miapppassword \
+        --send
+
+# Varias cuentas con rotación automática
+python email_sender.py \
+        --smtp-accounts "cuenta1@gmail.com:pass1,cuenta2@gmail.com:pass2" \
         --send
 ```
 

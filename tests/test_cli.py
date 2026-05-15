@@ -12,7 +12,7 @@ def test_parser_add():
 @patch("campusdigitalfp_email_sender.cli.add_email_to_csv")
 def test_cli_add(mock_add):
     from campusdigitalfp_email_sender.cli import main
-    with patch("sys.argv", ["campusvirtualfp_email_sender",
+    with patch("sys.argv", ["campusdigitalfp_email_sender",
                             "--smtp-user", "test@mail.com",
                             "--smtp-password", "testpass",
                             "--add", "a@b.com;Sub;<h1>Hi</h1>"]):

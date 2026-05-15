@@ -2,8 +2,9 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import List, Tuple
 
-from .config import load_config, DEFAULT_CONFIG_FILE
+from .config import load_config, DEFAULT_CONFIG_FILE, SmtpAccount
 from .logger import setup_logger
 from .mailer import send_email
 from .utils import (
@@ -17,7 +18,7 @@ from .utils import (
     is_failed,
 )
 
-logger = logging.getLogger("campusvirtualfp-email-sender")
+logger = logging.getLogger("campusdigitalfp-email-sender")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -57,10 +58,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--smtp-user",
         default=cfg.get("smtp_user"),
+        help="Cuenta SMTP única (alternativa a --smtp-accounts)",
     )
     parser.add_argument(
         "--smtp-password",
         default=cfg.get("smtp_password"),
+        help="Contraseña para --smtp-user",
+    )
+    parser.add_argument(
+        "--smtp-accounts",
+        type=str,
+        default=None,
+        metavar="user1:pass1,user2:pass2",
+        help="Lista de cuentas SMTP separadas por coma para rotación automática",
     )
     parser.add_argument(
         "--from-name",
@@ -87,8 +97,31 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def send_emails(args) -> None:
-    csv_path = None
+def resolve_accounts(args, cfg: dict) -> List[SmtpAccount]:
+    """Construye la lista de cuentas SMTP desde CLI o config."""
+    # --smtp-accounts tiene prioridad
+    if args.smtp_accounts:
+        accounts = []
+        for pair in args.smtp_accounts.split(","):
+            pair = pair.strip()
+            if ":" in pair:
+                user, pwd = pair.split(":", 1)
+                accounts.append((user.strip(), pwd.strip()))
+        if accounts:
+            return accounts
+
+    # Cuentas del fichero de config
+    if cfg.get("smtp_accounts"):
+        return cfg["smtp_accounts"]
+
+    # Compatibilidad: --smtp-user / --smtp-password
+    if args.smtp_user and args.smtp_password:
+        return [(args.smtp_user, args.smtp_password)]
+
+    return []
+
+
+def send_emails(args, accounts: List[SmtpAccount]) -> None:
     if args.retry_failed:
         if not is_failed(args.retry_failed):
             logger.error("--retry-failed debe ser un fichero *-FALLIDO.csv")
@@ -121,16 +154,17 @@ def send_emails(args) -> None:
 
     ok_count = 0
     fail_count = 0
+    current_account_idx = 0
     for row in pending:
-        res = send_email(
+        res, current_account_idx = send_email(
             smtp_host=args.smtp_host,
             smtp_port=args.smtp_port,
-            smtp_user=args.smtp_user,
-            smtp_password=args.smtp_password,
+            accounts=accounts,
             to=row["email"],
             subject=row["asunto"],
             html=row["contenido"],
             from_name=args.from_name,
+            start_idx=current_account_idx,
         )
         row["estado"] = "ok" if res.ok else "fallido"
         if res.ok:
@@ -142,7 +176,6 @@ def send_emails(args) -> None:
     all_ok = all(r.get("estado") == "ok" for r in rows)
     nuevo_nombre = rename_after_process(csv_path, all_ok)
 
-    # RESUMEN FINAL
     logger.info("========== RESUMEN ==========")
     logger.info("Fichero: %s", nuevo_nombre.name)
     logger.info("Total  : %d", len(rows))
@@ -152,17 +185,11 @@ def send_emails(args) -> None:
 
 
 def main():
+    cfg = load_config()
     parser = build_parser()
     args = parser.parse_args()
 
     logger = setup_logger(level=args.log_level, log_file=args.log_file)
-
-    if not args.smtp_user or not args.smtp_password:
-        logger.error(
-            "Faltan credenciales SMTP. Crea %s o pasa --smtp-user y --smtp-password",
-            DEFAULT_CONFIG_FILE,
-        )
-        sys.exit(1)
 
     if args.add:
         try:
@@ -178,7 +205,15 @@ def main():
             logger.error("Formato incorrecto. Usa: email;asunto;contenido")
             sys.exit(1)
     else:
-        send_emails(args)
+        accounts = resolve_accounts(args, cfg)
+        if not accounts:
+            logger.error(
+                "Faltan credenciales SMTP. Usa --smtp-accounts, --smtp-user/--smtp-password "
+                "o configura %s",
+                DEFAULT_CONFIG_FILE,
+            )
+            sys.exit(1)
+        send_emails(args, accounts)
 
 
 if __name__ == "__main__":

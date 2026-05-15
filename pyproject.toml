@@ -19,8 +19,6 @@ packages = [{include = "campusdigitalfp_email_sender"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-pandas = "^2.0"
-python-dotenv = "^1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4"
@@ -28,13 +26,13 @@ pytest-mock = "^3.11"
 pytest-cov = "^4.0" 
 
 [tool.poetry.scripts]
-campusvirtualfp_email_sender = "campusvirtualfp_email_sender.__main__:main"
+campusdigitalfp_email_sender = "campusdigitalfp_email_sender.__main__:main"
 
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
-addopts = "--verbose --cov=campusvirtualfp_email_sender --cov-report=term-missing"
+addopts = "--verbose --cov=campusdigitalfp_email_sender --cov-report=term-missing"
 
 [build-system]
 requires = ["poetry-core"]
